@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -32,9 +32,11 @@ from upwork_assistant.domain.models import (
     Draft,
     DraftStatus,
     JobPosting,
+    JobSourceName,
     JobStatus,
     JobType,
     Score,
+    SearchQuery,
 )
 from upwork_assistant.ports.job_source import PolledJob
 from upwork_assistant.ports.llm import LLMUsageRecord
@@ -76,14 +78,20 @@ def _usage(purpose: str, job_external_id: str) -> LLMUsageRecord:
 
 
 class FakeJobSource:
-    """Возвращает заранее заданный список вакансий на каждый `poll()`."""
+    """Возвращает заранее заданный список вакансий на каждый `poll()`.
+
+    Полученные поиски запоминаются: `IngestService` обязан взять их из БД и
+    передать сюда, а не источник — сходить за ними самостоятельно.
+    """
 
     def __init__(self, jobs: list[JobPosting]) -> None:
         self._jobs = jobs
         self.poll_calls = 0
+        self.received_searches: list[list[str]] = []
 
-    async def poll(self) -> list[PolledJob]:
+    async def poll(self, searches: Sequence[str]) -> list[PolledJob]:
         self.poll_calls += 1
+        self.received_searches.append(list(searches))
         return [PolledJob(job=job, raw_payload=None) for job in self._jobs]
 
 
@@ -137,11 +145,20 @@ async def session_factory(tmp_path: Path) -> AsyncIterator[async_sessionmaker[As
         await engine.dispose()
 
 
-def _make_service(
+async def _make_service(
     job_source: FakeJobSource,
     notifier: FakeNotifier,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> IngestService:
+    """Собрать сервис и завести один активный поиск: без поисков в БД
+    `run_once()` теперь честно нечего опрашивать."""
+    async with unit_of_work(session_factory) as uow:
+        if not await uow.searches.list_active(JobSourceName.UPWORK):
+            await uow.searches.save(
+                SearchQuery(
+                    source=JobSourceName.UPWORK, name="default", query="https://default"
+                )
+            )
     return IngestService(
         job_source,
         session_factory,
@@ -159,7 +176,7 @@ async def test_run_once_scores_and_drafts_new_jobs(
     jobs = [_make_job("job-good", title="good python job"), _make_job("job-bad", title="bad job")]
     source = FakeJobSource(jobs)
     notifier = FakeNotifier()
-    service = _make_service(source, notifier, session_factory)
+    service = await _make_service(source, notifier, session_factory)
 
     processed = await service.run_once()
 
@@ -182,7 +199,7 @@ async def test_run_once_second_call_dedups_same_external_ids(
     jobs = [_make_job("job-good", title="good python job")]
     source = FakeJobSource(jobs)
     notifier = FakeNotifier()
-    service = _make_service(source, notifier, session_factory)
+    service = await _make_service(source, notifier, session_factory)
 
     first = await service.run_once()
     assert first == 1
@@ -218,7 +235,7 @@ async def test_run_once_job_not_matching_filter_is_filtered_out_before_scoring(
     jobs = [_make_job("job-good", title="good python job")]  # skills содержат только fastapi
     source = FakeJobSource(jobs)
     notifier = FakeNotifier()
-    service = _make_service(source, notifier, session_factory)
+    service = await _make_service(source, notifier, session_factory)
 
     await service.run_once()
 
@@ -236,7 +253,7 @@ async def test_run_once_scoring_failure_notifies_alert_and_marks_scoring_failed(
     jobs = [_make_job("job-fail", title="fail job")]
     source = FakeJobSource(jobs)
     notifier = FakeNotifier()
-    service = _make_service(source, notifier, session_factory)
+    service = await _make_service(source, notifier, session_factory)
 
     await service.run_once()
 
@@ -245,3 +262,49 @@ async def test_run_once_scoring_failure_notifies_alert_and_marks_scoring_failed(
         job = await uow.jobs.get_by_external_id("job-fail")
     assert job is not None
     assert job.status == JobStatus.SCORING_FAILED
+
+
+async def test_run_once_passes_active_searches_from_db_to_source(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with unit_of_work(session_factory) as uow:
+        await uow.searches.save(
+            SearchQuery(source=JobSourceName.UPWORK, name="on", query="https://on")
+        )
+        await uow.searches.save(
+            SearchQuery(
+                source=JobSourceName.UPWORK, name="off", query="https://off", is_active=False
+            )
+        )
+        await uow.searches.save(
+            SearchQuery(source=JobSourceName.LINKEDIN, name="other", query="https://other")
+        )
+
+    source = FakeJobSource([])
+    service = await _make_service(source, FakeNotifier(), session_factory)
+
+    await service.run_once()
+
+    # Только активные и только своего источника.
+    assert source.received_searches == [["https://on"]]
+
+
+async def test_run_once_without_searches_does_not_poll_at_all(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Пустая таблица поисков — не повод открывать браузер: опрос пропускается."""
+    source = FakeJobSource([_make_job("job-good", title="good python job")])
+    service = IngestService(
+        source,
+        session_factory,
+        FakeScoringService(),  # type: ignore[arg-type]
+        FakeProposalService(),  # type: ignore[arg-type]
+        FakeNotifier(),
+        MIN_SCORE,
+        DAILY_BUDGET,
+    )
+
+    processed = await service.run_once()
+
+    assert processed == 0
+    assert source.poll_calls == 0

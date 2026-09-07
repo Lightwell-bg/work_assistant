@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict
@@ -33,6 +34,11 @@ class PolledJob(BaseModel):
 class JobSource(Protocol):
     """Источник вакансий для одного цикла опроса."""
 
-    async def poll(self) -> list[PolledJob]:
-        """Получить вакансии, появившиеся с прошлого цикла."""
+    async def poll(self, searches: Sequence[str]) -> list[PolledJob]:
+        """Получить вакансии по переданным сохранённым поискам.
+
+        Поиски приходят снаружи, а не читаются адаптером: они лежат в БД, а
+        адаптер площадки не должен знать про наше хранилище — ровно так же,
+        как пресеты фильтров загружает `IngestService`, а не сам источник.
+        """
         ...

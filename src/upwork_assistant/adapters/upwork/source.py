@@ -1,7 +1,7 @@
 """`ports.JobSource` для Upwork.
 
-Один `poll()` = один заход на каждый сохранённый поиск из
-`settings.upwork_search_urls`, с пагинацией до `upwork_max_pages_per_search`
+Один `poll()` = один заход по переданным сохранённым поискам, с пагинацией
+до `upwork_max_pages_per_search`
 страниц: страница загружается, embedded Nuxt state разрешается
 (`ssr_state.py`), сырые вакансии валидируются `RawJob` и маппятся в домен
 (`mapper.py`). DOM-фолбэк подключается, только если извлечение embedded
@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Sequence
 
 from patchright.async_api import BrowserContext
 from pydantic import ValidationError
@@ -58,7 +59,7 @@ class UpworkJobSource:
         self._settings = settings
         self._policy = policy
 
-    async def poll(self) -> list[PolledJob]:
+    async def poll(self, searches: Sequence[str]) -> list[PolledJob]:
         jobs: list[PolledJob] = []
         async with BrowserSession(
             profile_dir=self._settings.upwork_profile_dir,
@@ -72,7 +73,7 @@ class UpworkJobSource:
             self._policy.record_page_load()
             await ensure_logged_in(page)
 
-            for url in self._settings.search_urls:
+            for url in searches:
                 if not self._policy.can_load_page():
                     logger.warning(
                         "Часовой лимит загрузок страниц исчерпан — прерываю опрос на %s", url

@@ -12,7 +12,7 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from upwork_assistant.adapters.db.uow import unit_of_work
-from upwork_assistant.domain.models import JobStatus
+from upwork_assistant.domain.models import JobSourceName, JobStatus
 from upwork_assistant.ports.job_source import JobSource
 from upwork_assistant.ports.notifier import Notifier
 from upwork_assistant.services import filter_service, pipeline
@@ -45,11 +45,16 @@ class IngestService:
 
     async def run_once(self) -> int:
         """Выполнить один цикл. Возвращает число новых вакансий, дошедших до пайплайна."""
-        jobs = await self._job_source.poll()
-        logger.info("Опрос вернул %d вакансий", len(jobs))
-
         async with unit_of_work(self._session_factory) as uow:
+            searches = await uow.searches.list_active(JobSourceName.UPWORK)
             active_filter_sets = await uow.filter_sets.list_active()
+
+        if not searches:
+            logger.warning("Нет активных поисков — цикл пропущен")
+            return 0
+
+        jobs = await self._job_source.poll([search.query for search in searches])
+        logger.info("Опрос вернул %d вакансий", len(jobs))
 
         processed = 0
         for polled in jobs:
