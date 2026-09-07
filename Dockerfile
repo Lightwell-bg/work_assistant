@@ -44,7 +44,7 @@ COPY --from=builder /install /usr/local
 #    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
 #    && apt-get update && apt-get install -y --no-install-recommends google-chrome-stable && rm -rf /var/lib/apt/lists/*
 RUN apt-get update \
- && apt-get install -y --no-install-recommends xvfb xauth \
+ && apt-get install -y --no-install-recommends xvfb xauth x11-utils \
  && rm -rf /var/lib/apt/lists/* \
  && patchright install --with-deps chrome \
  && useradd --create-home --shell /usr/sbin/nologin app \

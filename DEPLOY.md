@@ -162,7 +162,11 @@ tar czf backup-$(date +%F).tar.gz data/
 
 ## Траблшутинг
 
-**`xvfb-run: error: xauth command not found`, контейнер рестартует в цикле.** Реально словили это на боевом VPS — в образе не хватало пакета `xauth` (нужен `xvfb-run`, не только `xvfb`). Исправлено в `Dockerfile`; если у вас старый образ — подтяните код и пересоберите:
+**`xvfb-run: error: xauth command not found`, контейнер рестартует в цикле.** Реально словили это на боевом VPS — в образе не хватало пакета `xauth` (нужен `xvfb-run`, не только `xvfb`). Исправлено в `Dockerfile`.
+
+**Контейнер `Up`, но `unhealthy`, в логах пусто, `docker exec ... ps aux` показывает только `xvfb-run`/`Xvfb`, python не запущен вообще.** Тоже поймали на боевом VPS: `xvfb-run` проверяет готовность X-сервера командой `xdpyinfo` и без неё ждёт вечно, а python так и не стартует. Пакет `xdpyinfo` — из `x11-utils`, его тоже не хватало. Исправлено в `Dockerfile`.
+
+Оба случая лечатся одинаково — подтянуть код и пересобрать:
 ```bash
 git pull && docker compose up -d --build
 ```
