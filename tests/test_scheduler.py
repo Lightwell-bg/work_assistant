@@ -119,6 +119,30 @@ async def test_circuit_opens_after_threshold_and_stops_rescheduling(
     assert scheduler.get_job(_JOB_ID) is None
 
 
+async def test_start_after_open_circuit_actually_recovers(scheduler: AsyncIOScheduler) -> None:
+    """Регрессия: `/admin/resume` вызывает `start()`, который раньше не сбрасывал
+    circuit breaker — цикл тут же снова упирался в тот же открытый breaker вместо
+    реальной попытки. `start()` должен сбрасывать счётчик, а не только планировать."""
+    policy = _make_policy(circuit_breaker_threshold=2)
+    policy.record_failure()
+    policy.record_failure()
+    assert policy.is_circuit_open is True
+
+    ingest = FakeIngestService(run_once_results=[3])
+    notifier = FakeNotifier()
+    runner = PollingRunner(scheduler, ingest, policy, notifier)  # type: ignore[arg-type]
+    scheduler.start()
+
+    runner.start()  # эквивалент POST /admin/resume
+    assert policy.is_circuit_open is False
+
+    await runner._run_cycle()
+
+    assert ingest.calls == 1  # дошло до реальной попытки, а не сразу отвалилось
+    assert notifier.alerts == []
+    assert scheduler.get_job(_JOB_ID) is not None
+
+
 async def test_stop_is_safe_when_no_job_scheduled(scheduler: AsyncIOScheduler) -> None:
     policy = _make_policy()
     ingest = FakeIngestService(run_once_results=[0])

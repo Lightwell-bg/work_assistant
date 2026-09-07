@@ -43,7 +43,15 @@ class PollingRunner:
         self._notifier = notifier
 
     def start(self) -> None:
-        """Поставить первый цикл опроса на выполнение немедленно."""
+        """Поставить первый цикл опроса на выполнение немедленно.
+
+        Сбрасывает circuit breaker: `start()` вызывается и при запуске
+        процесса (сбрасывать нечего — счётчик и так на нуле), и из
+        `POST /admin/resume` — там это единственный способ реально снять
+        открытый circuit breaker, а не просто тут же упереться в него снова
+        на следующем цикле.
+        """
+        self._policy.reset_circuit()
         self._schedule_next(delay_seconds=0)
 
     def stop(self) -> None:

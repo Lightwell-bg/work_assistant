@@ -142,3 +142,21 @@ def test_circuit_closes_again_after_success() -> None:
 
     assert policy.is_circuit_open is False
     policy.check_circuit()  # не должно бросать
+
+
+def test_reset_circuit_closes_it_without_a_successful_cycle() -> None:
+    """Человек подтвердил, что причину устранили (например, добавил прокси) —
+    в отличие от record_success(), реального удачного цикла для этого не было."""
+    clock = FakeClock(datetime(2026, 1, 1, tzinfo=UTC))
+    policy = make_policy(clock, circuit_breaker_threshold=3)
+
+    policy.record_failure()
+    policy.record_failure()
+    policy.record_failure()
+    assert policy.is_circuit_open is True
+
+    policy.reset_circuit()
+
+    assert policy.is_circuit_open is False
+    assert policy.consecutive_failures == 0
+    policy.check_circuit()  # не должно бросать

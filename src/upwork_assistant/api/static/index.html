@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Upwork Assistant</title>
+<style>
+  :root {
+    --color-bg: #f4f5f7;
+    --color-card-bg: #ffffff;
+    --color-border: #dfe3e8;
+    --color-text: #202124;
+    --color-muted: #5f6368;
+    --color-green-bg: #e6f4ea;
+    --color-green-text: #1e7e34;
+    --color-red-bg: #fdecea;
+    --color-red-text: #c62828;
+    --color-neutral-bg: #eceff1;
+    --color-neutral-text: #546e7a;
+    --color-accent: #1a73e8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 0 0 48px 0;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  header.app-header {
+    background: var(--color-card-bg);
+    border-bottom: 1px solid var(--color-border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  header.app-header h1 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+  }
+  .badges { display: flex; gap: 10px; flex-wrap: wrap; }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .badge-ok { background: var(--color-green-bg); color: var(--color-green-text); }
+  .badge-error { background: var(--color-red-bg); color: var(--color-red-text); }
+  .badge-neutral { background: var(--color-neutral-bg); color: var(--color-neutral-text); }
+
+  main {
+    max-width: 1100px;
+    margin: 24px auto 0 auto;
+    padding: 0 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  section.card {
+    background: var(--color-card-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    padding: 18px 20px;
+  }
+  section.card h2 {
+    margin: 0 0 14px 0;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+  button {
+    font: inherit;
+    cursor: pointer;
+    border: 1px solid var(--color-border);
+    background: #fff;
+    border-radius: 6px;
+    padding: 7px 14px;
+    color: var(--color-text);
+  }
+  button:hover:not(:disabled) { background: #f1f3f4; }
+  button:disabled { opacity: 0.6; cursor: default; }
+  button.primary { background: var(--color-accent); border-color: var(--color-accent); color: #fff; }
+  button.primary:hover:not(:disabled) { background: #1765cc; }
+  button.danger { border-color: var(--color-red-text); color: var(--color-red-text); }
+  button.danger:hover:not(:disabled) { background: var(--color-red-bg); }
+
+  .error-text { color: var(--color-red-text); font-size: 13px; margin-top: 8px; }
+  .success-text { color: var(--color-green-text); font-size: 13px; margin-top: 8px; }
+  .hint-text { color: var(--color-muted); font-size: 12px; }
+
+  .failures-line { color: var(--color-red-text); font-weight: 600; margin-top: 10px; }
+
+  .stats-boxes { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .stat-box {
+    background: var(--color-neutral-bg);
+    border-radius: 6px;
+    padding: 10px 16px;
+    min-width: 110px;
+    text-align: center;
+  }
+  .stat-count { font-size: 22px; font-weight: 700; }
+  .stat-label { font-size: 12px; color: var(--color-muted); margin-top: 2px; }
+  .stats-cost { font-size: 13px; color: var(--color-muted); }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--color-border); vertical-align: top; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.02em; color: var(--color-muted); white-space: nowrap; }
+  tr.job-row { cursor: pointer; }
+  tr.job-row:hover { background: #f8f9fa; }
+  .empty-row { text-align: center; color: var(--color-muted); padding: 16px; }
+
+  .job-detail { padding: 12px 4px; }
+  .job-desc { white-space: pre-wrap; margin: 0 0 12px 0; }
+  .client-info { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--color-muted); margin-bottom: 14px; }
+  .draft-area { border-top: 1px dashed var(--color-border); padding-top: 12px; }
+  .draft-status { font-size: 13px; margin-bottom: 8px; color: var(--color-muted); }
+  textarea.draft-content {
+    width: 100%;
+    min-height: 140px;
+    font-family: inherit;
+    font-size: 13px;
+    padding: 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    resize: vertical;
+    background: #fafafa;
+  }
+  .draft-actions { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
+  .copy-message { font-size: 12px; color: var(--color-muted); margin-top: 6px; }
+
+  .filters-form-fields { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
+  .filters-form-top { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+  .filters-form-top label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--color-muted); }
+  .filters-form-top input[type="text"], select {
+    font: inherit;
+    padding: 6px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: #fff;
+  }
+  .filters-form-top input[readonly] { background: #f1f3f4; color: var(--color-muted); }
+  .checkbox-label { flex-direction: row !important; align-items: center; gap: 6px !important; }
+
+  #rule-rows { display: flex; flex-direction: column; gap: 10px; }
+  .rule-row { border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; background: #fafbfc; }
+  .rule-row-fields { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start; }
+  .rule-value-wrap { display: flex; flex-direction: column; gap: 3px; min-width: 200px; flex: 1; }
+  .rule-value-wrap input { width: 100%; }
+  .btn-remove-rule { align-self: flex-start; }
+
+  .form-actions { display: flex; gap: 10px; align-items: center; margin-top: 4px; }
+  #filter-form-title { font-weight: 600; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <h1>Upwork Assistant</h1>
+  <div class="badges">
+    <span id="health-badge" class="badge badge-neutral">проверка...</span>
+    <span id="admin-badge" class="badge badge-neutral">проверка...</span>
+  </div>
+</header>
+
+<main>
+
+  <section class="card" id="kill-switch-section">
+    <h2>Управление опросом</h2>
+    <div class="row">
+      <button id="btn-pause" class="danger">⏸ Остановить опрос</button>
+      <button id="btn-resume" class="primary">▶ Возобновить опрос</button>
+    </div>
+    <div id="consecutive-failures-line" class="failures-line" hidden></div>
+  </section>
+
+  <section class="card" id="stats-section">
+    <h2>Статистика</h2>
+    <div class="row" style="margin-bottom: 12px;">
+      <button id="btn-refresh-stats">🔄 Обновить</button>
+    </div>
+    <div id="stats-boxes" class="stats-boxes"></div>
+    <div id="stats-cost" class="stats-cost"></div>
+    <div id="stats-error" class="error-text" hidden></div>
+  </section>
+
+  <section class="card" id="filters-section">
+    <h2>Фильтры</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Имя</th>
+            <th>Режим</th>
+            <th>Активен</th>
+            <th>Правил</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody id="filters-tbody"></tbody>
+      </table>
+    </div>
+    <div id="filters-list-error" class="error-text" hidden></div>
+
+    <hr style="margin: 20px 0; border: none; border-top: 1px solid var(--color-border);">
+
+    <div id="filter-form">
+      <div id="filter-form-title">Новый фильтр</div>
+      <div class="filters-form-fields">
+        <div class="filters-form-top">
+          <label>Имя фильтра
+            <input type="text" id="filter-name" placeholder="например, my_filter">
+          </label>
+          <label>Режим сравнения
+            <select id="filter-match-mode">
+              <option value="all">все правила</option>
+              <option value="any">любое правило</option>
+            </select>
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="filter-is-active" checked>
+            Активен
+          </label>
+        </div>
+
+        <div id="rule-rows"></div>
+
+        <div class="row">
+          <button id="btn-add-rule">+ Добавить правило</button>
+        </div>
+
+        <div class="form-actions">
+          <button id="btn-save-filter" class="primary">💾 Сохранить фильтр</button>
+          <button id="btn-clear-filter">Очистить форму / Новый фильтр</button>
+        </div>
+        <div id="filter-form-message" hidden></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="jobs-section">
+    <h2>Вакансии</h2>
+    <div class="row" style="margin-bottom: 12px;">
+      <label class="hint-text">Статус:
+        <select id="job-status-select"></select>
+      </label>
+      <button id="btn-refresh-jobs">🔄 Обновить список</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Заголовок</th>
+            <th>Тип</th>
+            <th>Бюджет</th>
+            <th>Статус</th>
+            <th>Оценка</th>
+            <th>Опубликована</th>
+          </tr>
+        </thead>
+        <tbody id="jobs-tbody"></tbody>
+      </table>
+    </div>
+    <div id="jobs-error" class="error-text" hidden></div>
+  </section>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var JOB_STATUS_LABELS = {
+    new: "Новые",
+    filtered_out: "Отфильтровано",
+    scored: "Оценено",
+    scoring_failed: "Ошибка скоринга",
+    drafted: "Черновик готов",
+    notified: "Отправлено уведомление"
+  };
+
+  var DRAFT_STATUS_LABELS = {
+    pending: "В очереди",
+    ready: "Готов",
+    generation_failed: "Ошибка генерации",
+    sent: "Отправлено"
+  };
+
+  var FILTER_FIELDS = [
+    ["job_type", "Тип оплаты"],
+    ["budget_amount", "Бюджет (фикс)"],
+    ["hourly_min_rate", "Мин. ставка/час"],
+    ["hourly_max_rate", "Макс. ставка/час"],
+    ["experience_level", "Уровень опыта"],
+    ["client_payment_verified", "Оплата подтверждена"],
+    ["client_total_spend", "Всего потрачено заказчиком"],
+    ["client_hire_rate", "Доля найма заказчика"],
+    ["client_avg_rating", "Рейтинг заказчика"],
+    ["client_reviews_count", "Число отзывов"],
+    ["entry_cost", "Стоимость входа (Connects)"],
+    ["competition", "Конкуренция"],
+    ["title", "Заголовок"],
+    ["description", "Описание"],
+    ["skills", "Навыки"]
+  ];
+
+  var FILTER_OPERATORS = [
+    ["eq", "равно"],
+    ["ne", "не равно"],
+    ["gt", "больше"],
+    ["gte", "больше или равно"],
+    ["lt", "меньше"],
+    ["lte", "меньше или равно"],
+    ["in", "входит в список"],
+    ["not_in", "не входит в список"],
+    ["contains", "содержит"],
+    ["not_contains", "не содержит"],
+    ["contains_any", "содержит любое из"],
+    ["contains_all", "содержит все из"]
+  ];
+
+  var LIST_OPERATORS = ["in", "not_in", "contains_any", "contains_all"];
+
+  var jobDetailRows = {};
+  var jobDraftCache = {};
+  var editingFilterName = null;
+
+  // ---------- Утилиты ----------
+
+  function escapeHtml(value) {
+    if (value === null || value === undefined) return "";
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function formatDate(iso) {
+    try {
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return String(iso);
+      return d.toLocaleString("ru-RU");
+    } catch (err) {
+      return String(iso);
+    }
+  }
+
+  function formatBudget(job) {
+    if (job.job_type === "fixed" && job.budget) {
+      return job.budget.amount + " " + job.budget.currency;
+    }
+    if (job.job_type === "hourly" && job.rate_range) {
+      var min = job.rate_range.min_rate !== null && job.rate_range.min_rate !== undefined ? job.rate_range.min_rate : "?";
+      var max = job.rate_range.max_rate !== null && job.rate_range.max_rate !== undefined ? job.rate_range.max_rate : "?";
+      return min + "–" + max + " " + job.rate_range.currency + "/ч";
+    }
+    return "—";
+  }
+
+  function setBadge(el, kind, text) {
+    el.className = "badge badge-" + kind;
+    el.textContent = text;
+  }
+
+  // ---------- Заголовок: статус приложения ----------
+
+  function refreshHealthBadge() {
+    var el = document.getElementById("health-badge");
+    fetch("/health")
+      .then(function (resp) {
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        return resp.json();
+      })
+      .then(function (data) {
+        if (data && data.status === "healthy") {
+          setBadge(el, "ok", "Работает");
+        } else {
+          setBadge(el, "error", "Не отвечает");
+        }
+      })
+      .catch(function () {
+        setBadge(el, "error", "Не отвечает");
+      });
+  }
+
+  function refreshAdminBadgeAndPanel() {
+    var el = document.getElementById("admin-badge");
+    var failuresLine = document.getElementById("consecutive-failures-line");
+    return fetch("/admin/status")
+      .then(function (resp) {
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        return resp.json();
+      })
+      .then(function (data) {
+        if (data.circuit_open) {
+          setBadge(el, "error", "Остановлен");
+        } else if (data.scheduled) {
+          setBadge(el, "ok", "Опрос активен");
+        } else {
+          setBadge(el, "neutral", "Опрос не запущен");
+        }
+        if (data.consecutive_failures > 0) {
+          failuresLine.hidden = false;
+          failuresLine.textContent = "Неудачных циклов подряд: " + data.consecutive_failures;
+        } else {
+          failuresLine.hidden = true;
+        }
+      })
+      .catch(function () {
+        setBadge(el, "neutral", "не удалось проверить");
+        failuresLine.hidden = true;
+      });
+  }
+
+  function handlePause() {
+    var btn = document.getElementById("btn-pause");
+    btn.disabled = true;
+    fetch("/admin/pause", { method: "POST" })
+      .catch(function () {
+        alert("Не удалось остановить опрос. Проверьте соединение с сервером.");
+      })
+      .then(function () {
+        return refreshAdminBadgeAndPanel();
+      })
+      .then(function () {
+        btn.disabled = false;
+      });
+  }
+
+  function handleResume() {
+    var btn = document.getElementById("btn-resume");
+    btn.disabled = true;
+    fetch("/admin/resume", { method: "POST" })
+      .catch(function () {
+        alert("Не удалось возобновить опрос. Проверьте соединение с сервером.");
+      })
+      .then(function () {
+        return refreshAdminBadgeAndPanel();
+      })
+      .then(function () {
+        btn.disabled = false;
+      });
+  }
+
+  // ---------- Статистика ----------
+
+  function loadStats() {
+    var box = document.getElementById("stats-boxes");
+    var costEl = document.getElementById("stats-cost");
+    var errEl = document.getElementById("stats-error");
+    errEl.hidden = true;
+    fetch("/stats")
+      .then(function (resp) {
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        return resp.json();
+      })
+      .then(function (data) {
+        box.innerHTML = "";
+        Object.keys(data.jobs_by_status).forEach(function (key) {
+          var count = data.jobs_by_status[key];
+          var div = document.createElement("div");
+          div.className = "stat-box";
+          var label = JOB_STATUS_LABELS[key] || key;
+          div.innerHTML = '<div class="stat-count">' + escapeHtml(count) + '</div><div class="stat-label">' + escapeHtml(label) + "</div>";
+          box.appendChild(div);
+        });
+        var today = Number(data.llm_cost_today_usd || 0).toFixed(4);
+        var total = Number(data.llm_cost_total_usd || 0).toFixed(4);
+        costEl.textContent = "Расходы на ИИ — сегодня: $" + today + " · всего: $" + total;
+      })
+      .catch(function () {
+        errEl.hidden = false;
+        errEl.textContent = "Не удалось загрузить статистику.";
+      });
+  }
+
+  // ---------- Фильтры ----------
+
+  function getRuleHint(field, operator) {
+    if (LIST_OPERATORS.indexOf(operator) !== -1) {
+      return "через запятую, например: fixed, hourly";
+    }
+    if (field === "client_payment_verified") {
+      return "введите true или false";
+    }
+    return "число или текст";
+  }
+
+  function stringifyRuleValue(value) {
+    if (Array.isArray(value)) return value.join(", ");
+    return String(value);
+  }
+
+  function parseRuleValue(operator, raw) {
+    var trimmed = String(raw || "").trim();
+    if (LIST_OPERATORS.indexOf(operator) !== -1) {
+      return trimmed
+        .split(",")
+        .map(function (s) { return s.trim(); })
+        .filter(function (s) { return s.length > 0; });
+    }
+    if (/^(true|false)$/i.test(trimmed)) {
+      return trimmed.toLowerCase() === "true";
+    }
+    if (trimmed !== "" && !isNaN(Number(trimmed))) {
+      return Number(trimmed);
+    }
+    return trimmed;
+  }
+
+  function addRuleRow(rule) {
+    var container = document.getElementById("rule-rows");
+    var row = document.createElement("div");
+    row.className = "rule-row";
+
+    var fieldsWrap = document.createElement("div");
+    fieldsWrap.className = "rule-row-fields";
+
+    var fieldSelect = document.createElement("select");
+    fieldSelect.className = "rule-field";
+    fieldSelect.name = "rule-field";
+    fieldSelect.setAttribute("aria-label", "Поле правила");
+    FILTER_FIELDS.forEach(function (pair) {
+      var opt = document.createElement("option");
+      opt.value = pair[0];
+      opt.textContent = pair[1];
+      fieldSelect.appendChild(opt);
+    });
+
+    var operatorSelect = document.createElement("select");
+    operatorSelect.className = "rule-operator";
+    operatorSelect.name = "rule-operator";
+    operatorSelect.setAttribute("aria-label", "Оператор сравнения");
+    FILTER_OPERATORS.forEach(function (pair) {
+      var opt = document.createElement("option");
+      opt.value = pair[0];
+      opt.textContent = pair[1];
+      operatorSelect.appendChild(opt);
+    });
+
+    var valueWrap = document.createElement("div");
+    valueWrap.className = "rule-value-wrap";
+    var valueInput = document.createElement("input");
+    valueInput.type = "text";
+    valueInput.className = "rule-value";
+    valueInput.name = "rule-value";
+    valueInput.placeholder = "значение";
+    var hint = document.createElement("div");
+    hint.className = "hint-text rule-hint";
+    valueWrap.appendChild(valueInput);
+    valueWrap.appendChild(hint);
+
+    var removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "btn-remove-rule";
+    removeBtn.textContent = "✕";
+    removeBtn.addEventListener("click", function () {
+      row.remove();
+    });
+
+    function updateHint() {
+      hint.textContent = getRuleHint(fieldSelect.value, operatorSelect.value);
+    }
+    fieldSelect.addEventListener("change", updateHint);
+    operatorSelect.addEventListener("change", updateHint);
+
+    fieldsWrap.appendChild(fieldSelect);
+    fieldsWrap.appendChild(operatorSelect);
+    fieldsWrap.appendChild(valueWrap);
+    fieldsWrap.appendChild(removeBtn);
+    row.appendChild(fieldsWrap);
+    container.appendChild(row);
+
+    if (rule) {
+      fieldSelect.value = rule.field;
+      operatorSelect.value = rule.operator;
+      valueInput.value = stringifyRuleValue(rule.value);
+    }
+    updateHint();
+  }
+
+  function showFilterMessage(text, isError) {
+    var el = document.getElementById("filter-form-message");
+    el.hidden = false;
+    el.className = isError ? "error-text" : "success-text";
+    el.textContent = text;
+  }
+
+  function hideFilterMessage() {
+    var el = document.getElementById("filter-form-message");
+    el.hidden = true;
+    el.textContent = "";
+  }
+
+  function resetFilterForm() {
+    editingFilterName = null;
+    var nameInput = document.getElementById("filter-name");
+    nameInput.value = "";
+    nameInput.readOnly = false;
+    document.getElementById("filter-match-mode").value = "all";
+    document.getElementById("filter-is-active").checked = true;
+    document.getElementById("rule-rows").innerHTML = "";
+    document.getElementById("filter-form-title").textContent = "Новый фильтр";
+    hideFilterMessage();
+  }
+
+  function loadFilterIntoForm(filterSet) {
+    editingFilterName = filterSet.name;
+    var nameInput = document.getElementById("filter-name");
+    nameInput.value = filterSet.name;
+    nameInput.readOnly = true;
+    document.getElementById("filter-match-mode").value = filterSet.match_mode;
+    document.getElementById("filter-is-active").checked = filterSet.is_active;
+    document.getElementById("rule-rows").innerHTML = "";
+    filterSet.rules.forEach(function (rule) { addRuleRow(rule); });
+    document.getElementById("filter-form-title").textContent = 'Изменение фильтра «' + filterSet.name + '»';
+    hideFilterMessage();
+    document.getElementById("filter-form").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function deleteFilter(name) {
+    if (!window.confirm('Удалить фильтр «' + name + '»?')) return;
+    fetch("/filters/" + encodeURIComponent(name), { method: "DELETE" })
+      .then(function (resp) {
+        if (!resp.ok && resp.status !== 404) throw new Error("HTTP " + resp.status);
+        return loadFilters();
+      })
+      .catch(function () {
+        alert("Не удалось удалить фильтр. Попробуйте ещё раз.");
+      });
+  }
+
+  function renderFiltersList(filterSets) {
+    var tbody = document.getElementById("filters-tbody");
+    tbody.innerHTML = "";
+    if (!filterSets.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-row">Фильтров пока нет</td></tr>';
+      return;
+    }
+    filterSets.forEach(function (f) {
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + escapeHtml(f.name) + "</td>" +
+        "<td>" + (f.match_mode === "all" ? "все правила" : "любое правило") + "</td>" +
+        "<td>" + (f.is_active ? "✅" : "❌") + "</td>" +
+        "<td>" + f.rules.length + "</td>" +
+        '<td><button class="btn-edit-filter">Изменить</button> <button class="btn-delete-filter danger">Удалить</button></td>';
+      tr.querySelector(".btn-edit-filter").addEventListener("click", function () { loadFilterIntoForm(f); });
+      tr.querySelector(".btn-delete-filter").addEventListener("click", function () { deleteFilter(f.name); });
+      tbody.appendChild(tr);
+    });
+  }
+
+  function loadFilters() {
+    var errEl = document.getElementById("filters-list-error");
+    errEl.hidden = true;
+    return fetch("/filters")
+      .then(function (resp) {
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        return resp.json();
+      })
+      .then(function (filterSets) {
+        renderFiltersList(filterSets);
+      })
+      .catch(function () {
+        errEl.hidden = false;
+        errEl.textContent = "Не удалось загрузить список фильтров.";
+      });
+  }
+
+  function saveFilter() {
+    var nameInput = document.getElementById("filter-name");
+    var name = editingFilterName || nameInput.value.trim();
+    if (!name) {
+      showFilterMessage("Введите имя фильтра.", true);
+      return;
+    }
+    var matchMode = document.getElementById("filter-match-mode").value;
+    var isActive = document.getElementById("filter-is-active").checked;
+    var rows = document.querySelectorAll("#rule-rows .rule-row");
+    var rules = [];
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var field = row.querySelector(".rule-field").value;
+      var operator = row.querySelector(".rule-operator").value;
+      var rawValue = row.querySelector(".rule-value").value;
+      rules.push({ field: field, operator: operator, value: parseRuleValue(operator, rawValue) });
+    }
+    var body = { match_mode: matchMode, is_active: isActive, rules: rules };
+    var btn = document.getElementById("btn-save-filter");
+    btn.disabled = true;
+    fetch("/filters/" + encodeURIComponent(name), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    })
+      .then(function (resp) {
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        return resp.json();
+      })
+      .then(function () {
+        showFilterMessage("Фильтр сохранён.", false);
+        return loadFilters();
+      })
+      .then(function () {
+        resetFilterForm();
+      })
+      .catch(function () {
+        showFilterMessage("Не удалось сохранить фильтр. Проверьте значения и попробуйте снова.", true);
+      })
+      .then(function () {
+        btn.disabled = false;
+      });
+  }
+
+  // ---------- Вакансии ----------
+
+  function initJobStatusSelect() {
+    var select = document.getElementById("job-status-select");
+    var allOpt = document.createElement("option");
+    allOpt.value = "";
+    allOpt.textContent = "Все";
+    select.appendChild(allOpt);
+    Object.keys(JOB_STATUS_LABELS).forEach(function (value) {
+      var opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = JOB_STATUS_LABELS[value];
+      select.appendChild(opt);
+    });
+  }
+
+  function renderDraft(draft, externalId, draftArea) {
+    if (draft === null) {
+      draftArea.innerHTML = "<p>Черновик ещё не сгенерирован</p>";
+      return;
+    }
+    var statusLabel = DRAFT_STATUS_LABELS[draft.status] || draft.status;
+    var sentBtnHtml = draft.status !== "sent"
+      ? '<button class="btn-mark-sent primary">✅ Отклик отправлен</button>'
+      : "";
+    draftArea.innerHTML =
+      '<div class="draft-status">Статус черновика: ' + escapeHtml(statusLabel) + "</div>" +
+      '<textarea readonly class="draft-content">' + escapeHtml(draft.content) + "</textarea>" +
+      '<div class="draft-actions"><button class="btn-copy-draft">📋 Скопировать</button>' + sentBtnHtml + "</div>" +
+      '<div class="copy-message hint-text" hidden></div>';
+
+    var copyBtn = draftArea.querySelector(".btn-copy-draft");
+    var copyMsg = draftArea.querySelector(".copy-message");
+    copyBtn.addEventListener("click", function () {
+      try {
+        navigator.clipboard.writeText(draft.content).then(function () {
+          copyMsg.hidden = false;
+          copyMsg.textContent = "Скопировано!";
+        }).catch(function () {
+          copyMsg.hidden = false;
+          copyMsg.textContent = "Не удалось скопировать автоматически — выделите текст вручную (Ctrl+C).";
+        });
+      } catch (err) {
+        copyMsg.hidden = false;
+        copyMsg.textContent = "Не удалось скопировать автоматически — выделите текст вручную (Ctrl+C).";
+      }
+    });
+
+    var sentBtn = draftArea.querySelector(".btn-mark-sent");
+    if (sentBtn) {
+      sentBtn.addEventListener("click", function () {
+        sentBtn.disabled = true;
+        fetch("/jobs/" + encodeURIComponent(externalId) + "/draft/sent", { method: "POST" })
+          .then(function (resp) {
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            return resp.json();
+          })
+          .then(function (updated) {
+            jobDraftCache[externalId] = updated;
+            renderDraft(updated, externalId, draftArea);
+          })
+          .catch(function () {
+            sentBtn.disabled = false;
+            alert("Не удалось отметить черновик отправленным. Попробуйте ещё раз.");
+          });
+      });
+    }
+  }
+
+  function loadDraft(externalId, draftArea) {
+    if (Object.prototype.hasOwnProperty.call(jobDraftCache, externalId)) {
+      renderDraft(jobDraftCache[externalId], externalId, draftArea);
+      return;
+    }
+    fetch("/jobs/" + encodeURIComponent(externalId) + "/draft")
+      .then(function (resp) {
+        if (resp.status === 404) return null;
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        return resp.json();
+      })
+      .then(function (draft) {
+        jobDraftCache[externalId] = draft;
+        renderDraft(draft, externalId, draftArea);
+      })
+      .catch(function () {
+        draftArea.innerHTML = '<p class="error-text">Не удалось загрузить черновик.</p>';
+      });
+  }
+
+  function populateJobDetail(job, detailRow) {
+    var td = detailRow.querySelector("td");
+    var description = job.description || "";
+    var shortDescription = description.length > 500 ? description.slice(0, 500) + "..." : description;
+    var client = job.client || {};
+    var ratingText = client.avg_rating !== null && client.avg_rating !== undefined
+      ? client.avg_rating + "/5"
+      : "нет отзывов";
+    // total_spend приходит как строка Decimal — иногда в виде "0E-10" (так
+    // Upwork сам отдаёт ноль в своих данных). Через Number() -> toFixed(2)
+    // получаем нормальный "$0.00" вместо научной нотации как есть.
+    var totalSpendNum = Number(client.total_spend);
+    var totalSpendText = isFinite(totalSpendNum) ? totalSpendNum.toFixed(2) : "0.00";
+
+    td.innerHTML =
+      '<div class="job-detail">' +
+        '<p class="job-desc">' + escapeHtml(shortDescription) + "</p>" +
+        '<div class="client-info">' +
+          "<span>Страна: " + escapeHtml(client.country || "—") + "</span>" +
+          "<span>Оплата подтверждена: " + (client.payment_verified ? "да" : "нет") + "</span>" +
+          "<span>Потрачено: $" + escapeHtml(totalSpendText) + "</span>" +
+          "<span>Рейтинг: " + escapeHtml(ratingText) + "</span>" +
+          "<span>Отзывов: " + escapeHtml(client.reviews_count) + "</span>" +
+        "</div>" +
+        '<div class="draft-area" data-draft-area="1">Загрузка черновика...</div>' +
+      "</div>";
+
+    var draftArea = td.querySelector("[data-draft-area]");
+    loadDraft(job.external_id, draftArea);
+  }
+
+  function toggleJobDetail(job) {
+    var detailRow = jobDetailRows[job.external_id];
+    if (!detailRow) return;
+    var wasHidden = detailRow.hidden;
+    detailRow.hidden = !wasHidden;
+    if (!wasHidden) return;
+    if (!detailRow.getAttribute("data-populated")) {
+      populateJobDetail(job, detailRow);
+      detailRow.setAttribute("data-populated", "1");
+    }
+  }
+
+  function renderJobsTable(jobs) {
+    var tbody = document.getElementById("jobs-tbody");
+    tbody.innerHTML = "";
+    jobDetailRows = {};
+    if (!jobs.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-row">Вакансий не найдено</td></tr>';
+      return;
+    }
+    jobs.forEach(function (job) {
+      var row = document.createElement("tr");
+      row.className = "job-row";
+      var scoreText = job.score_value !== null && job.score_value !== undefined
+        ? Number(job.score_value).toFixed(1) + "/10"
+        : "—";
+      row.innerHTML =
+        '<td><a href="' + escapeHtml(job.url) + '" target="_blank" rel="noopener">' + escapeHtml(job.title) + "</a></td>" +
+        "<td>" + (job.job_type === "fixed" ? "Фикс" : "Почасовая") + "</td>" +
+        "<td>" + escapeHtml(formatBudget(job)) + "</td>" +
+        "<td>" + escapeHtml(JOB_STATUS_LABELS[job.status] || job.status) + "</td>" +
+        "<td>" + scoreText + "</td>" +
+        "<td>" + escapeHtml(formatDate(job.posted_at)) + "</td>";
+      row.addEventListener("click", function () { toggleJobDetail(job); });
+      tbody.appendChild(row);
+
+      var detailRow = document.createElement("tr");
+      detailRow.hidden = true;
+      var detailTd = document.createElement("td");
+      detailTd.colSpan = 6;
+      detailRow.appendChild(detailTd);
+      tbody.appendChild(detailRow);
+
+      jobDetailRows[job.external_id] = detailRow;
+    });
+  }
+
+  function loadJobs() {
+    var select = document.getElementById("job-status-select");
+    var status = select.value;
+    var errEl = document.getElementById("jobs-error");
+    errEl.hidden = true;
+    var url = status ? "/jobs?status=" + encodeURIComponent(status) : "/jobs";
+    fetch(url)
+      .then(function (resp) {
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        return resp.json();
+      })
+      .then(function (jobs) {
+        renderJobsTable(jobs);
+      })
+      .catch(function () {
+        errEl.hidden = false;
+        errEl.textContent = "Не удалось загрузить список вакансий.";
+      });
+  }
+
+  // ---------- Инициализация ----------
+
+  document.addEventListener("DOMContentLoaded", function () {
+    initJobStatusSelect();
+    resetFilterForm();
+
+    refreshHealthBadge();
+    refreshAdminBadgeAndPanel();
+    loadStats();
+    loadFilters();
+    loadJobs();
+
+    setInterval(function () {
+      refreshHealthBadge();
+      refreshAdminBadgeAndPanel();
+    }, 15000);
+
+    document.getElementById("btn-pause").addEventListener("click", handlePause);
+    document.getElementById("btn-resume").addEventListener("click", handleResume);
+    document.getElementById("btn-refresh-stats").addEventListener("click", loadStats);
+    document.getElementById("btn-add-rule").addEventListener("click", function () { addRuleRow(null); });
+    document.getElementById("btn-clear-filter").addEventListener("click", resetFilterForm);
+    document.getElementById("btn-save-filter").addEventListener("click", saveFilter);
+    document.getElementById("job-status-select").addEventListener("change", loadJobs);
+    document.getElementById("btn-refresh-jobs").addEventListener("click", loadJobs);
+  });
+})();
+</script>
+
+</body>
+</html>

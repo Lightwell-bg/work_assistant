@@ -1,7 +1,10 @@
 """Просмотр вакансий и их черновиков.
 
-Эндпоинты только читающие: вакансии и черновики создаёт пайплайн ингеста,
-а не API — здесь нет `POST`/`PUT` для них.
+Вакансии и черновики создаёт пайплайн ингеста, а не API — здесь нет
+`POST`/`PUT` для их создания. Исключение — пометка черновика отправленным:
+это то же самое действие, что и кнопка «✅ Отклик отправлен» в Telegram
+(`adapters/telegram/handlers.py`), просто доступное и из веб-панели — сам
+черновик через API не меняется.
 """
 
 from __future__ import annotations
@@ -15,7 +18,7 @@ from upwork_assistant.api.schemas import (
     draft_out_from_domain,
     job_out_from_domain,
 )
-from upwork_assistant.domain.models import JobStatus
+from upwork_assistant.domain.models import DraftStatus, JobStatus
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -65,3 +68,18 @@ async def get_job_draft(external_id: str, uow: UowDep) -> DraftOut:
             detail=f"Черновик для вакансии {external_id!r} не найден",
         )
     return draft_out_from_domain(draft)
+
+
+@router.post("/{external_id}/draft/sent", response_model=DraftOut)
+async def mark_draft_sent(external_id: str, uow: UowDep) -> DraftOut:
+    """Пометить черновик отправленным — то же действие, что кнопка в Telegram."""
+    draft = await uow.drafts.get_by_job(external_id)
+    if draft is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Черновик для вакансии {external_id!r} не найден",
+        )
+    await uow.drafts.set_status(external_id, DraftStatus.SENT)
+    updated = await uow.drafts.get_by_job(external_id)
+    assert updated is not None
+    return draft_out_from_domain(updated)

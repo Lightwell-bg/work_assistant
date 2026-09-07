@@ -4,13 +4,17 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 
 from upwork_assistant import __version__
 from upwork_assistant.api.routes import admin, filters, health, jobs, stats
 from upwork_assistant.config import Settings, get_settings
 from upwork_assistant.container import Container, build_container
+
+_STATIC_DIR = Path(__file__).parent / "api" / "static"
 
 
 def create_app(settings: Settings | None = None, container: Container | None = None) -> FastAPI:
@@ -47,4 +51,10 @@ def create_app(settings: Settings | None = None, container: Container | None = N
     app.include_router(jobs.router)
     app.include_router(stats.router)
     app.include_router(admin.router)
+
+    @app.get("/", include_in_schema=False, response_class=HTMLResponse)
+    async def dashboard() -> str:
+        """Веб-панель: одна самодостаточная HTML-страница без сборки и npm."""
+        return (_STATIC_DIR / "index.html").read_text(encoding="utf-8")
+
     return app

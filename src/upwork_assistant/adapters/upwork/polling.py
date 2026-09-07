@@ -68,6 +68,17 @@ class PollingPolicy:
         """Неудачный цикл. При достижении порога следующий `check_circuit()` бросит исключение."""
         self._consecutive_failures += 1
 
+    def reset_circuit(self) -> None:
+        """Сбросить счётчик подряд неудачных циклов вручную.
+
+        В отличие от `record_success()` — это не результат удачного цикла, а
+        подтверждение человека, что причину устранили (например, вписали
+        прокси после блокировки Cloudflare) и опрос можно пробовать заново.
+        Без этого `/admin/resume` лишь планирует новый цикл, который тут же
+        снова упрётся в тот же открытый circuit breaker.
+        """
+        self._consecutive_failures = 0
+
     @property
     def consecutive_failures(self) -> int:
         return self._consecutive_failures

@@ -49,6 +49,18 @@ _PROPOSAL_TIER_MAP = {
     "50plus": ProposalTier.FIFTY_PLUS,
 }
 
+# Upwork подсвечивает совпадения с поисковым запросом прямо в title/description
+# самого JSON (не только в вёрстке) — оборачивает совпавшее слово в
+# `<span class="highlight">...</span>`. Обнаружено 2026-09-08 по реальным
+# данным: заголовки вида `<span class="highlight">Python</span> Numpy only...`
+# долетали как есть до Telegram и веб-панели. Тегов больше одного вида не
+# видели, но regex снимает любые — так надёжнее, чем завязываться на один класс.
+_HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
+
+
+def _strip_html_tags(text: str) -> str:
+    return _HTML_TAG_PATTERN.sub("", text)
+
 
 class UpworkJobFacts(BaseModel):
     """Всё специфичное для Upwork, что не протекает в доменные сервисы.
@@ -127,8 +139,8 @@ def map_job(raw: RawJob) -> tuple[JobPosting, UpworkJobFacts]:
     job = JobPosting(
         external_id=raw.uid,
         url=f"https://www.upwork.com/jobs/{raw.ciphertext}",
-        title=raw.title,
-        description=raw.description,
+        title=_strip_html_tags(raw.title),
+        description=_strip_html_tags(raw.description),
         skills=tuple(skill.prefLabel for skill in raw.attrs),
         job_type=job_type,
         budget=budget,

@@ -179,6 +179,39 @@ def test_map_job_returns_nonempty_skills_tuple_for_job_with_attrs(
     assert all(isinstance(skill, str) for skill in job.skills)
 
 
+def test_map_job_strips_search_highlight_markup_from_title(
+    raw_jobs_by_uid: dict[str, dict[str, object]],
+) -> None:
+    """Регрессия, найдена 2026-09-08 через веб-панель: Upwork оборачивает
+    совпадения с поисковым запросом в `<span class="highlight">...</span>`
+    прямо внутри title/description своего JSON — эта разметка долетала как
+    есть до Telegram и веб-панели вместо того, чтобы быть снятой."""
+    raw_title = raw_jobs_by_uid["2096874654681407285"]["title"]
+    assert raw_title == (
+        '<span class="highlight">Python</span> Numpy only - '
+        "Hessian artificial neural network ann maths"
+    )
+
+    raw = RawJob.model_validate(raw_jobs_by_uid["2096874654681407285"])
+    job, _facts = map_job(raw)
+
+    assert "<span" not in job.title
+    assert job.title == "Python Numpy only - Hessian artificial neural network ann maths"
+
+
+def test_map_job_strips_search_highlight_markup_from_description(
+    raw_jobs_by_uid: dict[str, dict[str, object]],
+) -> None:
+    raw_description = raw_jobs_by_uid["2096947624213923046"]["description"]
+    assert '<span class="highlight">' in raw_description  # type: ignore[operator]
+
+    raw = RawJob.model_validate(raw_jobs_by_uid["2096947624213923046"])
+    job, _facts = map_job(raw)
+
+    assert "<span" not in job.description
+    assert "</span>" not in job.description
+
+
 # --- _map_experience_level ---
 
 
