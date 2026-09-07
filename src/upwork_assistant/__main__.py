@@ -18,6 +18,7 @@ from upwork_assistant.app import create_app
 from upwork_assistant.config import get_settings
 from upwork_assistant.container import build_container
 from upwork_assistant.logging import setup_logging
+from upwork_assistant.services.search_seed import seed_searches_from_env
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ async def run() -> None:
     setup_logging(settings.log_level, settings.log_file, settings.log_json)
 
     async with build_container(settings) as container:
+        await seed_searches_from_env(container.session_factory, settings.search_urls)
         container.scheduler.start()
         container.polling_runner.start()
         polling_task = asyncio.create_task(
