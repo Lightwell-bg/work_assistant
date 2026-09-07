@@ -12,7 +12,15 @@ from datetime import datetime
 from typing import Protocol
 
 from upwork_assistant.domain.filters import FilterSet
-from upwork_assistant.domain.models import Draft, DraftStatus, JobPosting, JobStatus, Score
+from upwork_assistant.domain.models import (
+    Draft,
+    DraftStatus,
+    JobPosting,
+    JobSourceName,
+    JobStatus,
+    Score,
+    SearchQuery,
+)
 from upwork_assistant.ports.llm import LLMUsageRecord
 
 
@@ -88,3 +96,26 @@ class UpworkJobFactsRepository(Protocol):
         ...
 
     async def get_by_job(self, job_external_id: str) -> dict[str, object] | None: ...
+
+
+class SearchQueryRepository(Protocol):
+    """Хранение сохранённых поисков.
+
+    Раньше это был `UPWORK_SEARCH_URLS` в `.env`: правка требовала доступа к
+    файлам на сервере и перезапуска. Теперь — обычные строки в БД, которые
+    сервисы перечитывают на каждый цикл.
+    """
+
+    async def save(self, search: SearchQuery) -> None:
+        """Создать поиск или заменить существующий по паре `(source, name)`."""
+        ...
+
+    async def list_all(self) -> list[SearchQuery]: ...
+
+    async def list_active(self, source: JobSourceName) -> list[SearchQuery]: ...
+
+    async def delete(self, source: JobSourceName, name: str) -> None: ...
+
+    async def count(self) -> int:
+        """Сколько всего поисков — по этому числу решается разовый засев из `.env`."""
+        ...

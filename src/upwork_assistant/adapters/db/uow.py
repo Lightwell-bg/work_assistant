@@ -17,6 +17,7 @@ from upwork_assistant.adapters.db.repositories import (
     SqlAlchemyFilterSetRepository,
     SqlAlchemyJobRepository,
     SqlAlchemyLLMUsageRepository,
+    SqlAlchemySearchQueryRepository,
     SqlAlchemyUpworkJobFactsRepository,
 )
 
@@ -31,6 +32,7 @@ class UnitOfWork:
         self.drafts = SqlAlchemyDraftRepository(session)
         self.llm_usage = SqlAlchemyLLMUsageRepository(session)
         self.upwork_facts = SqlAlchemyUpworkJobFactsRepository(session)
+        self.searches = SqlAlchemySearchQueryRepository(session)
 
 
 @asynccontextmanager

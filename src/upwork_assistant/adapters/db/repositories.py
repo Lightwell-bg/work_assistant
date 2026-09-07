@@ -19,6 +19,7 @@ from upwork_assistant.adapters.db.tables import (
     FilterSetRow,
     JobPostingRow,
     LLMUsageRow,
+    SearchQueryRow,
     UpworkJobFactsRow,
 )
 from upwork_assistant.domain.errors import PermanentError
@@ -29,12 +30,14 @@ from upwork_assistant.domain.models import (
     DraftStatus,
     ExperienceLevel,
     JobPosting,
+    JobSourceName,
     JobStatus,
     JobType,
     Money,
     ProposalTier,
     RateRange,
     Score,
+    SearchQuery,
 )
 from upwork_assistant.ports.llm import LLMUsageRecord
 
@@ -45,6 +48,10 @@ class UnknownJobError(PermanentError):
 
 class UnknownFilterSetError(PermanentError):
     """Операция адресована пресету фильтров, которого нет в БД."""
+
+
+class UnknownSearchQueryError(PermanentError):
+    """Операция адресована поиску, которого нет в БД."""
 
 
 def _job_to_domain(row: JobPostingRow) -> JobPosting:
@@ -373,3 +380,68 @@ class SqlAlchemyUpworkJobFactsRepository:
     async def get_by_job(self, job_external_id: str) -> dict[str, object] | None:
         row = await self._get_row(job_external_id)
         return row.raw_payload if row is not None else None
+
+
+def _search_to_domain(row: SearchQueryRow) -> SearchQuery:
+    return SearchQuery(
+        source=JobSourceName(row.source),
+        name=row.name,
+        query=row.query,
+        is_active=row.is_active,
+    )
+
+
+class SqlAlchemySearchQueryRepository:
+    """Реализация `SearchQueryRepository` поверх одной `AsyncSession`."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def _get_row(self, source: JobSourceName, name: str) -> SearchQueryRow | None:
+        result = await self._session.execute(
+            select(SearchQueryRow).where(
+                SearchQueryRow.source == source.value, SearchQueryRow.name == name
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def save(self, search: SearchQuery) -> None:
+        row = await self._get_row(search.source, search.name)
+        if row is None:
+            self._session.add(
+                SearchQueryRow(
+                    source=search.source.value,
+                    name=search.name,
+                    query=search.query,
+                    is_active=search.is_active,
+                )
+            )
+        else:
+            row.query = search.query
+            row.is_active = search.is_active
+        await self._session.flush()
+
+    async def list_all(self) -> list[SearchQuery]:
+        result = await self._session.execute(
+            select(SearchQueryRow).order_by(SearchQueryRow.source, SearchQueryRow.name)
+        )
+        return [_search_to_domain(row) for row in result.scalars().all()]
+
+    async def list_active(self, source: JobSourceName) -> list[SearchQuery]:
+        result = await self._session.execute(
+            select(SearchQueryRow)
+            .where(SearchQueryRow.source == source.value, SearchQueryRow.is_active)
+            .order_by(SearchQueryRow.name)
+        )
+        return [_search_to_domain(row) for row in result.scalars().all()]
+
+    async def delete(self, source: JobSourceName, name: str) -> None:
+        row = await self._get_row(source, name)
+        if row is None:
+            raise UnknownSearchQueryError(f"Поиск {name!r} источника {source.value!r} не найден")
+        await self._session.delete(row)
+        await self._session.flush()
+
+    async def count(self) -> int:
+        result = await self._session.execute(select(func.count()).select_from(SearchQueryRow))
+        return int(result.scalar_one())
