@@ -1,0 +1,17 @@
+services:
+  assistant:
+    build: .
+    image: upwork-assistant:latest
+    container_name: upwork-assistant
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8077:8077"
+    volumes:
+      # Профиль браузера и БД должны переживать пересборку образа.
+      - ./data:/app/data
+      - ./logs:/app/logs
+    # Chromium падает при нехватке /dev/shm.
+    shm_size: "1gb"
+    # mem_limit работает в docker compose; deploy.resources — только в Swarm.
+    mem_limit: 2g

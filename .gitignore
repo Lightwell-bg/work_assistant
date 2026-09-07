@@ -1,0 +1,37 @@
+# Секреты
+.env
+
+# Виртуальное окружение
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Данные приложения: БД, профиль браузера, профиль фрилансера
+data/
+!data/.gitkeep
+
+# Логи
+logs/
+*.log
+
+# Кэши инструментов
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# ОС
+Thumbs.db
+.DS_Store

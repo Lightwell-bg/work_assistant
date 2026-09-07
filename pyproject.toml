@@ -1,0 +1,107 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "upwork-assistant"
+version = "0.1.0"
+description = "AI-ассистент для мониторинга Upwork: сбор вакансий, фильтрация, скоринг и черновики откликов в Telegram"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.6.0",
+    "httpx>=0.28.0",
+    "tenacity>=9.0.0",
+    "sqlalchemy>=2.0.36",
+    "aiosqlite>=0.20.0",
+    "alembic>=1.14.0",
+    "aiogram>=3.15.0",
+    "apscheduler>=3.11.0",
+    "patchright>=1.49.0",
+    "python-json-logger>=3.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/upwork_assistant"]
+
+# ---------------------------------------------------------------- ruff
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",    # pycodestyle
+    "F",         # pyflakes
+    "I",         # isort
+    "N",         # pep8-naming
+    "UP",        # pyupgrade
+    "B",         # bugbear
+    "C4",        # comprehensions
+    "SIM",       # simplify
+    "TID",       # tidy imports
+    "RUF",       # ruff-specific
+    "ASYNC",     # async pitfalls
+]
+ignore = [
+    "B008",      # FastAPI Depends() в аргументах по умолчанию — идиома фреймворка
+    "RUF001",    # Документация и сообщения на русском: кириллица не «неоднозначный юникод»
+    "RUF002",
+    "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]
+# Поля 1-в-1 повторяют camelCase из недокументированного payload Upwork —
+# алиасить каждое ради PEP8 добавило бы только шум без пользы для точности.
+"src/upwork_assistant/adapters/upwork/payload_models.py" = ["N815"]
+
+# ---------------------------------------------------------------- mypy
+[tool.mypy]
+python_version = "3.12"
+files = ["src", "tests"]
+plugins = ["pydantic.mypy"]
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+
+# Ядро проверяем строго: домен, порты и сервисы не должны содержать Any.
+[[tool.mypy.overrides]]
+module = [
+    "upwork_assistant.domain.*",
+    "upwork_assistant.ports.*",
+    "upwork_assistant.services.*",
+]
+strict = true
+
+# Адаптеры работают с нетипизированными внешними библиотеками.
+[[tool.mypy.overrides]]
+module = ["patchright.*", "apscheduler.*", "pythonjsonlogger.*"]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-q --strict-markers -m \"not live\""
+markers = [
+    "live: обращается к реальным внешним сервисам; требует ключей и запускается вручную",
+]
+
+[tool.coverage.run]
+source = ["src/upwork_assistant"]
+branch = true
