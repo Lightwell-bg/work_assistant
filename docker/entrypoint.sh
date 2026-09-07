@@ -6,6 +6,11 @@
 # паузу вместо polling-проверки и запускаем приложение.
 set -e
 
+# Хвост от предыдущего аварийного завершения (падение python, OOM, ручной
+# рестарт контейнера) — без этого следующий Xvfb откажется стартовать с
+# "Server is already active for display 99".
+rm -f /tmp/.X99-lock
+
 Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
 export DISPLAY=:99
 
