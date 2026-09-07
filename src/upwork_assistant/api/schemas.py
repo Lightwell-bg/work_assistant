@@ -19,10 +19,12 @@ from upwork_assistant.domain.models import (
     DraftStatus,
     ExperienceLevel,
     JobPosting,
+    JobSourceName,
     JobStatus,
     JobType,
     ProposalTier,
     Score,
+    SearchQuery,
 )
 
 
@@ -138,6 +140,32 @@ class AdminStatusOut(BaseModel):
     scheduled: bool
     circuit_open: bool
     consecutive_failures: int
+
+
+class SearchQueryIn(BaseModel):
+    """Тело запроса на создание/замену поиска. Источник и имя — в пути URL."""
+
+    query: str
+    is_active: bool = True
+
+
+class SearchQueryOut(BaseModel):
+    """Сохранённый поиск на выходе."""
+
+    source: JobSourceName
+    name: str
+    query: str
+    is_active: bool
+
+
+def search_query_out_from_domain(search: SearchQuery) -> SearchQueryOut:
+    """Собрать выходной DTO поиска из доменной модели."""
+    return SearchQueryOut(
+        source=search.source,
+        name=search.name,
+        query=search.query,
+        is_active=search.is_active,
+    )
 
 
 def filter_rule_in_to_domain(rule: FilterRuleIn) -> FilterRule:

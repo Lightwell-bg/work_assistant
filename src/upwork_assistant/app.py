@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
 from upwork_assistant import __version__
-from upwork_assistant.api.routes import admin, filters, health, jobs, stats
+from upwork_assistant.api.routes import admin, filters, health, jobs, searches, stats
 from upwork_assistant.config import Settings, get_settings
 from upwork_assistant.container import Container, build_container
 
@@ -51,6 +51,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
     app.include_router(jobs.router)
     app.include_router(stats.router)
     app.include_router(admin.router)
+    app.include_router(searches.router)
 
     @app.get("/", include_in_schema=False, response_class=HTMLResponse)
     async def dashboard() -> str:
