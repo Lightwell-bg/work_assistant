@@ -32,10 +32,12 @@ COPY --from=builder /install /usr/local
 # xvfb — на реальном прогоне 2026-09-07 выяснилось, что UPWORK_HEADLESS=True
 # ловит челлендж Cloudflare даже с валидной сессией; headless=False
 # (по умолчанию в .env.example) требует X-дисплея, которого в контейнере
-# без монитора нет — поэтому CMD ниже оборачивает запуск в xvfb-run.
+# без монитора нет. Xvfb поднимается вручную в docker/entrypoint.sh, а не
+# через `xvfb-run` — на боевом VPS 2026-09-08 `xvfb-run` намертво зависал в
+# собственной проверке готовности дисплея (через `xdpyinfo`) ещё до запуска
+# python, и это не лечилось установкой xauth/x11-utils.
 # На реальном VPS (Ubuntu) 2026-09 сборка образа с `patchright install
-# --with-deps chrome` прошла без ошибок (контейнер потом падал на xauth,
-# т.е. до Chrome дело ещё не дошло) — если на вашем сервере эта команда
+# --with-deps chrome` прошла без ошибок — если на вашем сервере эта команда
 # всё же не поставит браузер (проверить `google-chrome --version` внутри
 # контейнера), раскомментируйте официальный репозиторий Google Chrome ниже
 # вместо `patchright install --with-deps chrome`:
@@ -44,12 +46,15 @@ COPY --from=builder /install /usr/local
 #    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
 #    && apt-get update && apt-get install -y --no-install-recommends google-chrome-stable && rm -rf /var/lib/apt/lists/*
 RUN apt-get update \
- && apt-get install -y --no-install-recommends xvfb xauth x11-utils \
+ && apt-get install -y --no-install-recommends xvfb \
  && rm -rf /var/lib/apt/lists/* \
  && patchright install --with-deps chrome \
  && useradd --create-home --shell /usr/sbin/nologin app \
  && mkdir -p /app/data /app/logs \
  && chown -R app:app /app /opt/browsers
+
+COPY --chown=app:app docker/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 USER app
 
@@ -58,4 +63,4 @@ EXPOSE 8077
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import httpx,sys; sys.exit(0 if httpx.get('http://127.0.0.1:8077/health', timeout=5).status_code == 200 else 1)"
 
-CMD ["xvfb-run", "--auto-servernum", "--server-args=-screen 0 1920x1080x24", "python", "-m", "upwork_assistant"]
+CMD ["/app/entrypoint.sh"]
