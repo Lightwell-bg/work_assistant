@@ -38,6 +38,7 @@ def test_upgrade_head_creates_all_tables(tmp_path: Path) -> None:
         "drafts",
         "llm_usage",
         "upwork_job_facts",
+        "search_queries",
     } <= tables
 
     job_columns = {col["name"] for col in inspector.get_columns("job_postings")}
@@ -72,3 +73,22 @@ def test_upgrade_head_creates_all_tables(tmp_path: Path) -> None:
     } <= upwork_job_facts_columns
 
     sync_engine.dispose()
+
+
+def test_upgrade_head_creates_search_queries_columns(tmp_path: Path) -> None:
+    db_path = tmp_path / "search_queries_test.db"
+    cfg = _alembic_config(f"sqlite+aiosqlite:///{db_path}")
+
+    command.upgrade(cfg, "head")
+
+    inspector = inspect(create_engine(f"sqlite:///{db_path}"))
+    columns = {col["name"] for col in inspector.get_columns("search_queries")}
+    assert columns == {
+        "id",
+        "source",
+        "name",
+        "query",
+        "is_active",
+        "created_at",
+        "updated_at",
+    }
