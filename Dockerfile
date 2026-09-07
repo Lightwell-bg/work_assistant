@@ -33,18 +33,18 @@ COPY --from=builder /install /usr/local
 # ловит челлендж Cloudflare даже с валидной сессией; headless=False
 # (по умолчанию в .env.example) требует X-дисплея, которого в контейнере
 # без монитора нет — поэтому CMD ниже оборачивает запуск в xvfb-run.
-# НЕ ПРОВЕРЕНО на Linux (собрано и проверялось только на Windows-разработке):
-# `patchright install chrome` на Windows лишь ОБНАРУЖИЛ уже установленный
-# системный Chrome, а не скачал его — неизвестно, ведёт ли он себя иначе на
-# Debian. Если на реальном сервере эта команда не поставит браузер (проверить
-# `google-chrome --version` после сборки), раскомментируйте официальный
-# репозиторий Google Chrome ниже вместо `patchright install --with-deps chrome`:
+# На реальном VPS (Ubuntu) 2026-09 сборка образа с `patchright install
+# --with-deps chrome` прошла без ошибок (контейнер потом падал на xauth,
+# т.е. до Chrome дело ещё не дошло) — если на вашем сервере эта команда
+# всё же не поставит браузер (проверить `google-chrome --version` внутри
+# контейнера), раскомментируйте официальный репозиторий Google Chrome ниже
+# вместо `patchright install --with-deps chrome`:
 #
 #   RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg \
 #    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
 #    && apt-get update && apt-get install -y --no-install-recommends google-chrome-stable && rm -rf /var/lib/apt/lists/*
 RUN apt-get update \
- && apt-get install -y --no-install-recommends xvfb \
+ && apt-get install -y --no-install-recommends xvfb xauth \
  && rm -rf /var/lib/apt/lists/* \
  && patchright install --with-deps chrome \
  && useradd --create-home --shell /usr/sbin/nologin app \
