@@ -137,3 +137,28 @@ class Draft(BaseModel):
     content: str
     status: DraftStatus = DraftStatus.PENDING
     created_at: datetime
+
+
+class JobSourceName(StrEnum):
+    """Площадка, с которой пришла вакансия или для которой задан поиск.
+
+    Значения попадают в БД и в пути API — менять их нельзя без миграции.
+    """
+
+    UPWORK = "upwork"
+    LINKEDIN = "linkedin"
+
+
+class SearchQuery(BaseModel):
+    """Сохранённый поиск: то, что раньше лежало строкой в `UPWORK_SEARCH_URLS`.
+
+    Живёт в БД, а не в `.env`, чтобы правиться через веб-панель без
+    перезапуска процесса и без доступа к файлам на сервере.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    source: JobSourceName
+    name: str
+    query: str
+    is_active: bool = True
