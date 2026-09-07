@@ -161,7 +161,7 @@
   .btn-remove-rule { align-self: flex-start; }
 
   .form-actions { display: flex; gap: 10px; align-items: center; margin-top: 4px; }
-  #filter-form-title { font-weight: 600; margin-bottom: 4px; }
+  #filter-form-title, #search-form-title { font-weight: 600; margin-bottom: 4px; }
 </style>
 </head>
 <body>
@@ -193,6 +193,62 @@
     <div id="stats-boxes" class="stats-boxes"></div>
     <div id="stats-cost" class="stats-cost"></div>
     <div id="stats-error" class="error-text" hidden></div>
+  </section>
+
+  <section class="card" id="searches-section">
+    <h2>Поиски</h2>
+    <p class="hint-text">
+      Адреса сохранённых поисков площадки. Настройте фильтры прямо на сайте
+      площадки, скопируйте URL из адресной строки и вставьте сюда.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Источник</th>
+            <th>Имя</th>
+            <th>Запрос</th>
+            <th>Активен</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody id="searches-tbody"></tbody>
+      </table>
+    </div>
+    <div id="searches-list-error" class="error-text" hidden></div>
+
+    <hr style="margin: 20px 0; border: none; border-top: 1px solid var(--color-border);">
+
+    <div id="search-form">
+      <div id="search-form-title">Новый поиск</div>
+      <div class="filters-form-fields">
+        <div class="filters-form-top">
+          <label>Источник
+            <select id="search-source">
+              <option value="upwork">Upwork</option>
+              <option value="linkedin">LinkedIn</option>
+            </select>
+          </label>
+          <label>Имя поиска
+            <input type="text" id="search-name" placeholder="например, python">
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="search-is-active" checked>
+            Активен
+          </label>
+        </div>
+
+        <label>Запрос (URL поиска)
+          <input type="text" id="search-query" placeholder="https://...">
+        </label>
+
+        <div class="form-actions">
+          <button id="btn-save-search" class="primary">💾 Сохранить поиск</button>
+          <button id="btn-clear-search">Очистить форму / Новый поиск</button>
+        </div>
+        <div id="search-form-message" hidden></div>
+      </div>
+    </div>
   </section>
 
   <section class="card" id="filters-section">
@@ -726,6 +782,147 @@
       });
   }
 
+  // ---------- Поиски ----------
+
+  var SOURCE_LABELS = { upwork: "Upwork", linkedin: "LinkedIn" };
+  var editingSearch = null;  // {source, name} правящегося поиска или null
+
+  function showSearchMessage(text, isError) {
+    var el = document.getElementById("search-form-message");
+    el.hidden = false;
+    el.className = isError ? "error-text" : "success-text";
+    el.textContent = text;
+  }
+
+  function hideSearchMessage() {
+    var el = document.getElementById("search-form-message");
+    el.hidden = true;
+    el.textContent = "";
+  }
+
+  function resetSearchForm() {
+    editingSearch = null;
+    document.getElementById("search-source").disabled = false;
+    document.getElementById("search-source").value = "upwork";
+    var nameInput = document.getElementById("search-name");
+    nameInput.value = "";
+    nameInput.readOnly = false;
+    document.getElementById("search-query").value = "";
+    document.getElementById("search-is-active").checked = true;
+    document.getElementById("search-form-title").textContent = "Новый поиск";
+    hideSearchMessage();
+  }
+
+  function loadSearchIntoForm(search) {
+    editingSearch = { source: search.source, name: search.name };
+    // Источник и имя вместе адресуют поиск в URL: сменить их — значит создать
+    // другой поиск, а не переименовать этот. Поэтому при правке они заперты.
+    var sourceSelect = document.getElementById("search-source");
+    sourceSelect.value = search.source;
+    sourceSelect.disabled = true;
+    var nameInput = document.getElementById("search-name");
+    nameInput.value = search.name;
+    nameInput.readOnly = true;
+    document.getElementById("search-query").value = search.query;
+    document.getElementById("search-is-active").checked = search.is_active;
+    document.getElementById("search-form-title").textContent =
+      'Изменение поиска «' + search.name + '»';
+    hideSearchMessage();
+    document.getElementById("search-form").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function deleteSearch(search) {
+    if (!window.confirm('Удалить поиск «' + search.name + '»?')) return;
+    fetch("/searches/" + search.source + "/" + encodeURIComponent(search.name), { method: "DELETE" })
+      .then(function (resp) {
+        if (!resp.ok && resp.status !== 404) throw new Error("HTTP " + resp.status);
+        return loadSearches();
+      })
+      .catch(function () {
+        alert("Не удалось удалить поиск. Попробуйте ещё раз.");
+      });
+  }
+
+  function renderSearchesList(searches) {
+    var tbody = document.getElementById("searches-tbody");
+    tbody.innerHTML = "";
+    if (!searches.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-row">Поисков пока нет</td></tr>';
+      return;
+    }
+    searches.forEach(function (s) {
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + escapeHtml(SOURCE_LABELS[s.source] || s.source) + "</td>" +
+        "<td>" + escapeHtml(s.name) + "</td>" +
+        '<td><a href="' + escapeHtml(s.query) + '" target="_blank" rel="noopener">' + escapeHtml(s.query) + "</a></td>" +
+        "<td>" + (s.is_active ? "✅" : "❌") + "</td>" +
+        '<td><button class="btn-edit-search">Изменить</button> <button class="btn-delete-search danger">Удалить</button></td>';
+      tr.querySelector(".btn-edit-search").addEventListener("click", function () { loadSearchIntoForm(s); });
+      tr.querySelector(".btn-delete-search").addEventListener("click", function () { deleteSearch(s); });
+      tbody.appendChild(tr);
+    });
+  }
+
+  function loadSearches() {
+    var errEl = document.getElementById("searches-list-error");
+    errEl.hidden = true;
+    return fetch("/searches")
+      .then(function (resp) {
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        return resp.json();
+      })
+      .then(function (searches) {
+        renderSearchesList(searches);
+      })
+      .catch(function () {
+        errEl.hidden = false;
+        errEl.textContent = "Не удалось загрузить список поисков.";
+      });
+  }
+
+  function saveSearch() {
+    var source = editingSearch ? editingSearch.source : document.getElementById("search-source").value;
+    var name = editingSearch ? editingSearch.name : document.getElementById("search-name").value.trim();
+    var query = document.getElementById("search-query").value.trim();
+    if (!name) {
+      showSearchMessage("Введите имя поиска.", true);
+      return;
+    }
+    if (!query) {
+      showSearchMessage("Введите URL поиска.", true);
+      return;
+    }
+    var body = {
+      query: query,
+      is_active: document.getElementById("search-is-active").checked
+    };
+    var btn = document.getElementById("btn-save-search");
+    btn.disabled = true;
+    fetch("/searches/" + source + "/" + encodeURIComponent(name), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    })
+      .then(function (resp) {
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        return resp.json();
+      })
+      .then(function () {
+        showSearchMessage("Поиск сохранён.", false);
+        return loadSearches();
+      })
+      .then(function () {
+        resetSearchForm();
+      })
+      .catch(function () {
+        showSearchMessage("Не удалось сохранить поиск. Проверьте URL и попробуйте снова.", true);
+      })
+      .then(function () {
+        btn.disabled = false;
+      });
+  }
+
   // ---------- Вакансии ----------
 
   function initJobStatusSelect() {
@@ -918,11 +1115,13 @@
   document.addEventListener("DOMContentLoaded", function () {
     initJobStatusSelect();
     resetFilterForm();
+    resetSearchForm();
 
     refreshHealthBadge();
     refreshAdminBadgeAndPanel();
     loadStats();
     loadFilters();
+    loadSearches();
     loadJobs();
 
     setInterval(function () {
@@ -936,6 +1135,8 @@
     document.getElementById("btn-add-rule").addEventListener("click", function () { addRuleRow(null); });
     document.getElementById("btn-clear-filter").addEventListener("click", resetFilterForm);
     document.getElementById("btn-save-filter").addEventListener("click", saveFilter);
+    document.getElementById("btn-clear-search").addEventListener("click", resetSearchForm);
+    document.getElementById("btn-save-search").addEventListener("click", saveSearch);
     document.getElementById("job-status-select").addEventListener("change", loadJobs);
     document.getElementById("btn-refresh-jobs").addEventListener("click", loadJobs);
   });
