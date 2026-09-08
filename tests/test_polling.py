@@ -144,6 +144,61 @@ def test_circuit_closes_again_after_success() -> None:
     policy.check_circuit()  # не должно бросать
 
 
+def test_interval_minutes_and_jitter_pct_reflect_construction_values() -> None:
+    clock = FakeClock(datetime(2026, 1, 1, tzinfo=UTC))
+    policy = make_policy(clock, interval_minutes=10, jitter_pct=20)
+
+    assert policy.interval_minutes == 10
+    assert policy.jitter_pct == 20
+
+
+def test_set_interval_minutes_changes_next_delay_bounds() -> None:
+    clock = FakeClock(datetime(2026, 1, 1, tzinfo=UTC))
+    policy = make_policy(clock, interval_minutes=10, jitter_pct=0)
+
+    policy.set_interval_minutes(30)
+
+    assert policy.interval_minutes == 30
+    assert policy.next_delay_seconds() == pytest.approx(30 * 60)
+
+
+def test_set_interval_minutes_rejects_less_than_one() -> None:
+    clock = FakeClock(datetime(2026, 1, 1, tzinfo=UTC))
+    policy = make_policy(clock)
+
+    with pytest.raises(ValueError, match="1"):
+        policy.set_interval_minutes(0)
+
+    # Значение не тронуто неудачной попыткой.
+    assert policy.interval_minutes == 10
+
+
+def test_set_jitter_pct_changes_next_delay_spread() -> None:
+    clock = FakeClock(datetime(2026, 1, 1, tzinfo=UTC))
+    policy = make_policy(clock, interval_minutes=10, jitter_pct=0)
+
+    policy.set_jitter_pct(50)
+
+    assert policy.jitter_pct == 50
+    base = 10 * 60
+    spread = base * 0.5
+    samples = [policy.next_delay_seconds() for _ in range(200)]
+    assert max(samples) - min(samples) > 0
+    assert min(samples) >= base - spread - 1e-6
+    assert max(samples) <= base + spread + 1e-6
+
+
+@pytest.mark.parametrize("value", [-1, 101])
+def test_set_jitter_pct_rejects_outside_0_to_100(value: int) -> None:
+    clock = FakeClock(datetime(2026, 1, 1, tzinfo=UTC))
+    policy = make_policy(clock, jitter_pct=20)
+
+    with pytest.raises(ValueError, match=r"0\.\.100"):
+        policy.set_jitter_pct(value)
+
+    assert policy.jitter_pct == 20
+
+
 def test_reset_circuit_closes_it_without_a_successful_cycle() -> None:
     """Человек подтвердил, что причину устранили (например, добавил прокси) —
     в отличие от record_success(), реального удачного цикла для этого не было."""

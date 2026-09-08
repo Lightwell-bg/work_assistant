@@ -51,6 +51,32 @@ class PollingPolicy:
         spread = base * (self._jitter_pct / 100)
         return base + random.uniform(-spread, spread)
 
+    @property
+    def interval_minutes(self) -> int:
+        return self._interval_minutes
+
+    @property
+    def jitter_pct(self) -> int:
+        return self._jitter_pct
+
+    def set_interval_minutes(self, value: int) -> None:
+        """Сменить интервал опроса у уже работающего экземпляра.
+
+        Применяется со следующего вызова `next_delay_seconds()` — правка
+        через веб-панель не требует перезапуска процесса, ровно как поиски
+        и фильтры. Нижняя граница — 1 минута: `0` или отрицательное значение
+        превратило бы цикл в долбёж биржи почти без пауз.
+        """
+        if value < 1:
+            raise ValueError(f"Интервал опроса должен быть не меньше 1 минуты, получено {value}")
+        self._interval_minutes = value
+
+    def set_jitter_pct(self, value: int) -> None:
+        """Сменить разброс интервала (в процентах) у уже работающего экземпляра."""
+        if not 0 <= value <= 100:
+            raise ValueError(f"Разброс интервала должен быть в пределах 0..100, получено {value}")
+        self._jitter_pct = value
+
     def can_load_page(self) -> bool:
         """Есть ли ещё запас в часовом лимите загрузок страниц."""
         self._trim_old_loads(self._clock())
