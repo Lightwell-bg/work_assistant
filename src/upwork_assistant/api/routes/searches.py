@@ -52,7 +52,7 @@ async def put_search(
         # `ctx.error` внутри errors() — это исходный ValueError валидатора, а не
         # JSON-примитив, поэтому без jsonable_encoder тело ответа не сериализуется.
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=jsonable_encoder(exc.errors(include_url=False)),
         ) from exc
     await uow.searches.save(search)
