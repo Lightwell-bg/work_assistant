@@ -197,3 +197,21 @@ class SearchQueryRow(Base):
     )
 
     __table_args__ = (UniqueConstraint("source", "name", name="uq_search_queries_source_name"),)
+
+
+class AppStateRow(Base):
+    """Общая key/value-таблица системных отметок процесса — например, факт
+    разового переноса поисков из `.env` (`services/search_seed.py`). Заведена
+    как общая, а не отдельной колонкой/таблицей под каждый такой факт, чтобы
+    следующая подобная отметка не требовала новой миграции под один флаг."""
+
+    __tablename__ = "app_state"
+
+    key: Mapped[str] = mapped_column(String, primary_key=True)
+    value: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )

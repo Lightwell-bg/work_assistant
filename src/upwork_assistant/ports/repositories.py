@@ -117,5 +117,18 @@ class SearchQueryRepository(Protocol):
     async def delete(self, source: JobSourceName, name: str) -> None: ...
 
     async def count(self) -> int:
-        """Сколько всего поисков — по этому числу решается разовый засев из `.env`."""
+        """Сколько всего поисков."""
+        ...
+
+
+class AppStateRepository(Protocol):
+    """Общее key/value-хранилище системных отметок процесса, не привязанных к
+    конкретной доменной сущности — например, факт разового переноса поисков
+    из `.env` (см. `services/search_seed.py`).
+    """
+
+    async def get(self, key: str) -> str | None: ...
+
+    async def set(self, key: str, value: str) -> None:
+        """Создать запись или заменить значение существующей (insert or replace)."""
         ...

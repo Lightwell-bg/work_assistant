@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from upwork_assistant.adapters.db.tables import (
+    AppStateRow,
     DraftRow,
     FilterRuleRow,
     FilterSetRow,
@@ -445,3 +446,26 @@ class SqlAlchemySearchQueryRepository:
     async def count(self) -> int:
         result = await self._session.execute(select(func.count()).select_from(SearchQueryRow))
         return int(result.scalar_one())
+
+
+class SqlAlchemyAppStateRepository:
+    """Реализация `AppStateRepository` поверх одной `AsyncSession`."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def _get_row(self, key: str) -> AppStateRow | None:
+        result = await self._session.execute(select(AppStateRow).where(AppStateRow.key == key))
+        return result.scalar_one_or_none()
+
+    async def get(self, key: str) -> str | None:
+        row = await self._get_row(key)
+        return row.value if row is not None else None
+
+    async def set(self, key: str, value: str) -> None:
+        row = await self._get_row(key)
+        if row is None:
+            self._session.add(AppStateRow(key=key, value=value))
+        else:
+            row.value = value
+        await self._session.flush()

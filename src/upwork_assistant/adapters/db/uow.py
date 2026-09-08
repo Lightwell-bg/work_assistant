@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from upwork_assistant.adapters.db.repositories import (
+    SqlAlchemyAppStateRepository,
     SqlAlchemyDraftRepository,
     SqlAlchemyFilterSetRepository,
     SqlAlchemyJobRepository,
@@ -33,6 +34,7 @@ class UnitOfWork:
         self.llm_usage = SqlAlchemyLLMUsageRepository(session)
         self.upwork_facts = SqlAlchemyUpworkJobFactsRepository(session)
         self.searches = SqlAlchemySearchQueryRepository(session)
+        self.app_state = SqlAlchemyAppStateRepository(session)
 
 
 @asynccontextmanager
