@@ -56,6 +56,13 @@ RUN apt-get update \
 COPY --chown=app:app docker/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
+# alembic.ini и migrations/ нужны прямо в образе: `alembic` — рантайм-зависимость
+# (см. pyproject.toml), но без этих двух путей `docker compose run --rm assistant
+# alembic upgrade head` падает с "No 'script_location' key found in configuration" —
+# обнаружено на боевом VPS 2026-09-09, миграции 0004/0005 накатить было нечем.
+COPY --chown=app:app alembic.ini ./alembic.ini
+COPY --chown=app:app migrations/ ./migrations/
+
 USER app
 
 EXPOSE 8077
