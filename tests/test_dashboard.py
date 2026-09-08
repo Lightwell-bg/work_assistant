@@ -35,3 +35,16 @@ async def test_dashboard_contains_searches_section(settings: Settings) -> None:
 
     assert 'id="searches-section"' in response.text
     assert 'id="searches-tbody"' in response.text
+
+
+async def test_dashboard_contains_polling_interval_controls(settings: Settings) -> None:
+    """Смоук: поля интервала опроса реально отдаются страницей."""
+    app = create_app(settings)
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/")
+
+    assert 'id="poll-interval-minutes"' in response.text
+    assert 'id="poll-jitter-pct"' in response.text
+    assert 'id="btn-save-polling-interval"' in response.text

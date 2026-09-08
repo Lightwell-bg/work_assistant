@@ -143,7 +143,7 @@
   .filters-form-fields { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
   .filters-form-top { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
   .filters-form-top label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--color-muted); }
-  .filters-form-top input[type="text"], select {
+  .filters-form-top input[type="text"], .filters-form-top input[type="number"], select {
     font: inherit;
     padding: 6px 8px;
     border: 1px solid var(--color-border);
@@ -183,6 +183,19 @@
       <button id="btn-resume" class="primary">▶ Возобновить опрос</button>
     </div>
     <div id="consecutive-failures-line" class="failures-line" hidden></div>
+
+    <hr style="margin: 20px 0; border: none; border-top: 1px solid var(--color-border);">
+
+    <div class="filters-form-top">
+      <label>Интервал опроса (мин)
+        <input type="number" id="poll-interval-minutes" min="1" step="1">
+      </label>
+      <label>Разброс интервала (%)
+        <input type="number" id="poll-jitter-pct" min="0" max="100" step="1">
+      </label>
+      <button id="btn-save-polling-interval" class="primary">💾 Сохранить</button>
+    </div>
+    <div id="polling-interval-message" hidden></div>
   </section>
 
   <section class="card" id="stats-section">
@@ -505,6 +518,68 @@
       })
       .then(function () {
         return refreshAdminBadgeAndPanel();
+      })
+      .then(function () {
+        btn.disabled = false;
+      });
+  }
+
+  function showPollingIntervalMessage(text, isError) {
+    var el = document.getElementById("polling-interval-message");
+    el.hidden = false;
+    el.className = isError ? "error-text" : "success-text";
+    el.textContent = text;
+  }
+
+  function loadPollingSettings() {
+    // Отдельно от refreshAdminBadgeAndPanel() (тикает раз в 15 секунд):
+    // если брать значения оттуда постоянно, поля будут затирать то, что
+    // пользователь в этот момент печатает. Читаем текущие значения один
+    // раз при загрузке страницы, дальше поля живут только вводом человека
+    // и ответом на собственное сохранение.
+    return fetch("/admin/status")
+      .then(function (resp) {
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        return resp.json();
+      })
+      .then(function (data) {
+        document.getElementById("poll-interval-minutes").value = data.interval_minutes;
+        document.getElementById("poll-jitter-pct").value = data.jitter_pct;
+      })
+      .catch(function () {
+        showPollingIntervalMessage("Не удалось загрузить текущий интервал опроса.", true);
+      });
+  }
+
+  function savePollingInterval() {
+    var intervalMinutes = parseInt(document.getElementById("poll-interval-minutes").value, 10);
+    var jitterPct = parseInt(document.getElementById("poll-jitter-pct").value, 10);
+
+    if (!Number.isFinite(intervalMinutes) || intervalMinutes < 1) {
+      showPollingIntervalMessage("Интервал должен быть не меньше 1 минуты.", true);
+      return;
+    }
+    if (!Number.isFinite(jitterPct) || jitterPct < 0 || jitterPct > 100) {
+      showPollingIntervalMessage("Разброс должен быть в пределах 0..100%.", true);
+      return;
+    }
+
+    var btn = document.getElementById("btn-save-polling-interval");
+    btn.disabled = true;
+    fetch("/admin/polling-interval", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ interval_minutes: intervalMinutes, jitter_pct: jitterPct })
+    })
+      .then(function (resp) {
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        return resp.json();
+      })
+      .then(function () {
+        showPollingIntervalMessage("Сохранено — применится со следующего цикла.", false);
+      })
+      .catch(function () {
+        showPollingIntervalMessage("Не удалось сохранить интервал. Проверьте значения.", true);
       })
       .then(function () {
         btn.disabled = false;
@@ -1123,6 +1198,7 @@
     loadFilters();
     loadSearches();
     loadJobs();
+    loadPollingSettings();
 
     setInterval(function () {
       refreshHealthBadge();
@@ -1131,6 +1207,9 @@
 
     document.getElementById("btn-pause").addEventListener("click", handlePause);
     document.getElementById("btn-resume").addEventListener("click", handleResume);
+    document.getElementById("btn-save-polling-interval").addEventListener(
+      "click", savePollingInterval
+    );
     document.getElementById("btn-refresh-stats").addEventListener("click", loadStats);
     document.getElementById("btn-add-rule").addEventListener("click", function () { addRuleRow(null); });
     document.getElementById("btn-clear-filter").addEventListener("click", resetFilterForm);
