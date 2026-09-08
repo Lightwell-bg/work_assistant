@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from upwork_assistant.domain.filters import (
     FilterField,
@@ -140,6 +140,17 @@ class AdminStatusOut(BaseModel):
     scheduled: bool
     circuit_open: bool
     consecutive_failures: int
+    interval_minutes: int
+    jitter_pct: int
+
+
+class PollingIntervalIn(BaseModel):
+    """Тело запроса на смену интервала опроса. Границы дублируют те, что уже
+    есть у `Settings.poll_interval_minutes`/`poll_jitter_pct` — значение из
+    панели должно проходить ту же проверку, что и значение из `.env`."""
+
+    interval_minutes: int = Field(ge=1)
+    jitter_pct: int = Field(ge=0, le=100)
 
 
 class SearchQueryIn(BaseModel):
