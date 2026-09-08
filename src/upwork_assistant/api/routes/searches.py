@@ -7,6 +7,8 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, status
+from fastapi.encoders import jsonable_encoder
+from pydantic import ValidationError
 
 from upwork_assistant.adapters.db.repositories import UnknownSearchQueryError
 from upwork_assistant.api.deps import UowDep
@@ -37,9 +39,22 @@ async def put_search(
     source: JobSourceName, name: str, body: SearchQueryIn, uow: UowDep
 ) -> SearchQueryOut:
     """Создать поиск или полностью заменить существующий."""
-    search = SearchQuery(
-        source=source, name=name, query=body.query, is_active=body.is_active
-    )
+    try:
+        search = SearchQuery(
+            source=source, name=name, query=body.query, is_active=body.is_active
+        )
+    except ValidationError as exc:
+        # Доменная модель сама проверяет свой инвариант (схему URL) в конструкторе.
+        # Здесь это падение вызвано телом запроса клиента, поэтому переводим его в 422
+        # локально. То же исключение при чтении уже сохранённой строки — это порча
+        # данных на сервере, а не ошибка запроса, и должно остаться 500 (см. чтение
+        # в repositories.py, которое этот try/except намеренно не оборачивает).
+        # `ctx.error` внутри errors() — это исходный ValueError валидатора, а не
+        # JSON-примитив, поэтому без jsonable_encoder тело ответа не сериализуется.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=jsonable_encoder(exc.errors(include_url=False)),
+        ) from exc
     await uow.searches.save(search)
     return search_query_out_from_domain(search)
 
