@@ -294,12 +294,13 @@ async def test_run_once_without_searches_does_not_poll_at_all(
 ) -> None:
     """Пустая таблица поисков — не повод открывать браузер: опрос пропускается."""
     source = FakeJobSource([_make_job("job-good", title="good python job")])
+    notifier = FakeNotifier()
     service = IngestService(
         source,
         session_factory,
         FakeScoringService(),  # type: ignore[arg-type]
         FakeProposalService(),  # type: ignore[arg-type]
-        FakeNotifier(),
+        notifier,
         MIN_SCORE,
         DAILY_BUDGET,
     )
@@ -308,3 +309,62 @@ async def test_run_once_without_searches_does_not_poll_at_all(
 
     assert processed == 0
     assert source.poll_calls == 0
+    # Находка 1: тишина в Telegram неотличима от «на этой неделе не было
+    # подходящих вакансий» — молчать нельзя, пользователь должен узнать.
+    assert len(notifier.alert_calls) == 1
+
+
+async def test_run_once_without_searches_twice_sends_only_one_alert(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Планировщик гоняет цикл каждые ~10 минут — алертить на каждый проход
+    значило бы заспамить Telegram навсегда. Алерт должен быть edge-triggered."""
+    source = FakeJobSource([])
+    notifier = FakeNotifier()
+    service = IngestService(
+        source,
+        session_factory,
+        FakeScoringService(),  # type: ignore[arg-type]
+        FakeProposalService(),  # type: ignore[arg-type]
+        notifier,
+        MIN_SCORE,
+        DAILY_BUDGET,
+    )
+
+    await service.run_once()
+    await service.run_once()
+
+    assert len(notifier.alert_calls) == 1
+
+
+async def test_run_once_alerts_again_after_searches_reappear_and_vanish(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Флаг edge-триггера должен сбрасываться, как только поиски снова есть —
+    иначе повторное исчезновение поисков молча пройдёт без нового алерта."""
+    source = FakeJobSource([])
+    notifier = FakeNotifier()
+    service = IngestService(
+        source,
+        session_factory,
+        FakeScoringService(),  # type: ignore[arg-type]
+        FakeProposalService(),  # type: ignore[arg-type]
+        notifier,
+        MIN_SCORE,
+        DAILY_BUDGET,
+    )
+
+    await service.run_once()
+    assert len(notifier.alert_calls) == 1
+
+    async with unit_of_work(session_factory) as uow:
+        await uow.searches.save(
+            SearchQuery(source=JobSourceName.UPWORK, name="temp", query="https://temp")
+        )
+    await service.run_once()
+    async with unit_of_work(session_factory) as uow:
+        await uow.searches.delete(JobSourceName.UPWORK, "temp")
+
+    await service.run_once()
+
+    assert len(notifier.alert_calls) == 2
