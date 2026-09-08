@@ -95,3 +95,17 @@ def test_put_with_unknown_source_returns_422(
         response = client.put("/searches/hh/python", json={"query": "https://a"})
 
     assert response.status_code == 422
+
+
+def test_put_with_non_http_query_returns_422(
+    settings: Settings, api_container: Container
+) -> None:
+    """Находка 3: query без http(s)-схемы (например, javascript:) не должен
+    доходить до репозитория и залогиненного браузера."""
+    app = create_app(settings, container=api_container)
+    with TestClient(app) as client:
+        response = client.put(
+            "/searches/upwork/x", json={"query": "javascript:alert(1)"}
+        )
+
+    assert response.status_code == 422

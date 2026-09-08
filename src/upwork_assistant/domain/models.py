@@ -11,7 +11,7 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class JobType(StrEnum):
@@ -162,3 +162,16 @@ class SearchQuery(BaseModel):
     name: str
     query: str
     is_active: bool = True
+
+    @field_validator("query")
+    @classmethod
+    def _query_must_be_http_url(cls, value: str) -> str:
+        """Значение уходит без изменений в `page.goto()` браузера, залогиненного
+        в реальный аккаунт Upwork, и рендерится как `href` в веб-панели —
+        находка 3: `javascript:...` там оказался бы живой ссылкой в интерфейсе
+        оператора. Ограничена только схема, не домен: поле общее с LinkedIn."""
+        if not value.startswith(("http://", "https://")):
+            raise ValueError(
+                "Поиск должен быть ссылкой, начинающейся с http:// или https://"
+            )
+        return value
